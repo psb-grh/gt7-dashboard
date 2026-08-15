@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>GT7 Dash</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #131822;
+    --accent: #00d1ff;
+    --warn: #ff3b30;
+    --good: #34c759;
+    --text: #e6e9ef;
+    --dim: #6b7280;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+  }
+  .dash {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100dvh;
+    padding: 8px;
+    gap: 8px;
+  }
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border-radius: 14px; padding: 10px 14px;
+  }
+  .status-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--warn); flex-shrink: 0; transition: background .3s; }
+  .status-dot.connected { background: var(--good); }
+  .laps { display: flex; gap: 18px; flex: 1; justify-content: flex-end; }
+  .lap-block { text-align: right; }
+  .lap-label { font-size: 0.7rem; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  .lap-value { font-size: 1.25rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .center { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; min-height: 0; }
+  .gauge {
+    background: var(--panel); border-radius: 18px; padding: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .speed-value { font-size: clamp(3.5rem, 18vw, 7rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .speed-unit { font-size: 1rem; color: var(--dim); margin-top: 2px; }
+  .rpm-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+  .rpm-value { font-size: clamp(2rem, 10vw, 3.2rem); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rpm-bar { width: 88%; height: 14px; background: #1c2330; border-radius: 7px; overflow: hidden; }
+  .rpm-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--good), var(--accent), var(--warn)); border-radius: 7px; transition: width .05s linear; }
+  .rpm-fill.redline { background: var(--warn); }
+  .gear-box {
+    position: absolute; top: 8px; right: 12px;
+    font-size: clamp(2rem, 9vw, 3rem); font-weight: 800; color: var(--accent);
+    line-height: 1;
+  }
+  .pedals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pedal {
+    background: var(--panel); border-radius: 14px; padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .pedal-head { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+  .pedal-track { height: 22px; background: #1c2330; border-radius: 6px; overflow: hidden; }
+  .pedal-fill { height: 100%; width: 0%; border-radius: 6px; transition: width .05s linear; }
+  .throttle .pedal-fill { background: var(--good); }
+  .brake .pedal-fill { background: var(--warn); }
+  .extra { display: flex; gap: 12px; font-size: 0.8rem; color: var(--dim); margin-top: 4px; }
+  .extra span b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="dash">
+  <div class="topbar">
+    <div class="status-dot" id="status"></div>
+    <div class="laps">
+      <div class="lap-block"><div class="lap-label">Last</div><div class="lap-value" id="lastLap">--:--.---</div></div>
+      <div class="lap-block"><div class="lap-label">Best</div><div class="lap-value" id="bestLap">--:--.---</div></div>
+      <div class="lap-block"><div class="lap-label">Lap</div><div class="lap-value" id="curLap">0/0</div></div>
+    </div>
+  </div>
+  <div class="center">
+    <div class="gauge">
+      <div class="speed-value" id="speed">0</div>
+      <div class="speed-unit">km/h</div>
+    </div>
+    <div class="gauge">
+      <div class="gear-box" id="gear">N</div>
+      <div class="rpm-wrap">
+        <div class="rpm-value" id="rpm">0</div>
+        <div class="rpm-bar"><div class="rpm-fill" id="rpmFill"></div></div>
+        <div class="speed-unit" id="rpmPeak">- rpm</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="pedals">
+      <div class="pedal throttle">
+        <div class="pedal-head"><span>Throttle</span><span id="throttleVal">0%</span></div>
+        <div class="pedal-track"><div class="pedal-fill" id="throttleFill"></div></div>
+      </div>
+      <div class="pedal brake">
+        <div class="pedal-head"><span>Brake</span><span id="brakeVal">0%</span></div>
+        <div class="pedal-track"><div class="pedal-fill" id="brakeFill"></div></div>
+      </div>
+    </div>
+    <div class="extra">
+      <span>Fuel <b id="fuel">-</b></span>
+      <span>Oil <b id="oil">-</b>C</span>
+      <span>Water <b id="water">-</b>C</span>
+      <span>Boost <b id="boost">-</b></span>
+    </div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const REDLINE_RPM = 8000;
+let lastDataTs = 0;
+function fmt(n, d=0) { return Number(n||0).toFixed(d); }
+function render(t) {
+  $('speed').textContent = fmt(t.car_speed, 0);
+  let g = t.current_gear;
+  $('gear').textContent = g === 0 ? 'R' : (g >= 13 ? 'N' : g);
+  $('rpm').textContent = fmt(t.rpm, 0);
+  const pct = Math.min(100, (t.rpm / REDLINE_RPM) * 100);
+  const fill = $('rpmFill');
+  fill.style.width = pct + '%';
+  fill.classList.toggle('redline', t.rpm >= REDLINE_RPM * 0.92);
+  $('throttleFill').style.width = Math.min(100, t.throttle) + '%';
+  $('brakeFill').style.width    = Math.min(100, t.brake)    + '%';
+  $('throttleVal').textContent = fmt(t.throttle, 0) + '%';
+  $('brakeVal').textContent    = fmt(t.brake, 0)    + '%';
+  $('lastLap').textContent = t.last_lap || '--:--.---';
+  $('bestLap').textContent = t.best_lap || '--:--.---';
+  $('curLap').textContent  = (t.current_lap||0) + '/' + (t.total_laps||0);
+  $('fuel').textContent  = fmt(t.fuel, 1) + '/' + fmt(t.fuel_capacity, 0) + 'L';
+  $('oil').textContent   = fmt(t.oil_temp, 0);
+  $('water').textContent = fmt(t.water_temp, 0);
+  $('boost').textContent = fmt(t.boost, 2) + ' bar';
+}
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(proto + '://' + location.host + '/ws');
+  ws.onopen = () => { lastDataTs = Date.now(); };
+  ws.onmessage = (e) => {
+    lastDataTs = Date.now();
+    $('status').classList.add('connected');
+    render(JSON.parse(e.data));
+  };
+  ws.onclose = () => {
+    $('status').classList.remove('connected');
+    setTimeout(connect, 1500);
+  };
+  ws.onerror = () => ws.close();
+}
+setInterval(() => {
+  if (Date.now() - lastDataTs > 2000) $('status').classList.remove('connected');
+}, 1000);
+connect();
+</script>
+</body>
+</html>
